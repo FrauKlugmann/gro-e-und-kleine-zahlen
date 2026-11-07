@@ -1,0 +1,239 @@
+<!doctype html><html lang="de"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Trainer – Multiplikation großer und kleiner Zahlen</title><style>
+:root{--bg:#f4f7fb;--card:#fff;--text:#1f2937;--muted:#667085;--line:#d9e1ec;--blue:#2457d6;--green:#16803d;--red:#c0362c;--soft:#f8fafc}*{box-sizing:border-box}body{margin:0;font-family:Arial,Helvetica,sans-serif;background:var(--bg);color:var(--text)}header{background:#fff;border-bottom:1px solid var(--line);padding:18px}header h1{margin:0 0 6px;font-size:clamp(1.5rem,4vw,2.2rem)}header p{margin:0;color:var(--muted)}main{max-width:1100px;margin:24px auto;padding:0 24px 40px}.card{background:#fff;border:1px solid var(--line);border-radius:18px;padding:22px;margin-bottom:18px;box-shadow:0 6px 22px rgba(15,23,42,.06)}.levels{display:flex;gap:10px;flex-wrap:wrap}.levels button,.types button,button{font:inherit;border:0;border-radius:10px;padding:11px 15px;font-weight:700;cursor:pointer}.levels button,.types button{background:#fff;border:1px solid var(--line)}.levels button.active,.types button.active{background:var(--blue);color:#fff}.types{display:flex;gap:10px;flex-wrap:wrap}.task{background:var(--soft);border-radius:14px;padding:22px;margin-top:16px}.q{font-size:clamp(2rem,6vw,3.1rem);font-weight:800;text-align:center;margin:10px 0 22px}.answerrow{display:flex;justify-content:center;gap:10px;flex-wrap:wrap;align-items:center}.signBtn,.commaBtn{background:#fff;border:1px solid #b9c4d4;min-width:52px;font-size:1.45rem;padding:12px 16px}.stepPrompt{text-align:center;font-weight:800;font-size:1.15rem;margin:0 0 10px}.completedSteps{max-width:620px;margin:0 auto 14px}.completedStep{background:#fff;border:1px solid var(--line);border-radius:10px;padding:10px 12px;margin:8px 0;font-size:1.05rem}.completedStep strong{color:var(--green)}.answerrow input{font:inherit;font-size:1.35rem;padding:12px;border:1px solid #b9c4d4;border-radius:10px;width:min(320px,100%);text-align:center}.primary{background:var(--blue);color:#fff}.secondary{background:#fff;border:1px solid var(--line)}.feedback{min-height:32px;text-align:center;font-weight:800;font-size:1.1rem;margin-top:14px}.good{color:var(--green)}.bad{color:var(--red)}.hint{background:#eaf0ff;border-left:5px solid var(--blue);padding:14px 16px;border-radius:10px;margin-top:16px;line-height:1.5}.hidden{display:none}.solution{background:#eef8f1;border-left:5px solid var(--green);padding:14px 16px;border-radius:10px;margin-top:16px;line-height:1.6}.solution ol{margin:8px 0 0;padding-left:24px}.solution li{margin:7px 0}.eval{width:100%;border-collapse:collapse;margin-top:12px}.eval th,.eval td{padding:11px;border-bottom:1px solid var(--line);text-align:left}.eval th:last-child,.eval td:last-child{text-align:right}.small{color:var(--muted);font-size:.93rem}@media(max-width:600px){main{padding:0 12px 30px}.card{padding:16px}.eval{font-size:.9rem}}
+</style></head><body><header><h1>Multiplikation großer und kleiner Zahlen</h1><p>Vorzeichen beachten, mit den Ziffern rechnen und Stellenwert richtig bestimmen.</p></header><main>
+<section class="card"><h2>Stufe wählen</h2><div class="levels" id="levels"><button data-level="start" class="active">Start</button><button data-level="foerder">Lernförderschüler</button><button data-level="regel">Regelschüler</button><button data-level="profi">Profi</button></div><div id="typeArea" style="margin-top:18px"><h3 style="margin:0 0 10px">Zahlen auswählen</h3><div class="types" id="types"></div></div></section>
+<section class="card"><h2>Aufgabe</h2><div class="task"><div class="q" id="q"></div><div id="completedSteps" class="completedSteps hidden"></div><div id="stepPrompt" class="stepPrompt hidden"></div><div class="answerrow"><button type="button" class="signBtn" id="minusBtn" aria-label="Minus eingeben">−</button><button type="button" class="commaBtn" id="commaBtn" aria-label="Komma eingeben">,</button><input id="answer" inputmode="decimal" placeholder="Ergebnis eingeben"><button class="primary" id="check">Prüfen</button><button class="secondary" id="next">Neue Aufgabe</button></div><div class="feedback" id="feedback"></div><div id="hint" class="hint hidden"></div><div id="solution" class="solution hidden"></div></div></section>
+<section class="card"><h2>Auswertung</h2><table class="eval"><thead><tr><th>Stufe</th><th>Richtig gelöst</th><th>Richtig in Prozent</th></tr></thead><tbody id="stats"></tbody></table><p class="small">Eine Aufgabe zählt beim ersten Prüfen. Danach kannst du deine Eingabe verbessern, ohne dass sie doppelt gewertet wird.</p></section>
+</main><script>
+const names={start:'Start',foerder:'Lernförderschüler',regel:'Regelschüler',profi:'Profi'};
+let level='start',type='large',current=null,counted=false,wrongAttempts=0,startStep='result',startCoreAnswer=null,startZeroAnswer=null,startDecimalAnswer=null;
+const stat={start:[0,0],foerder:[0,0],regel:[0,0],profi:[0,0]};
+const $=id=>document.getElementById(id);
+function pick(a){return a[Math.floor(Math.random()*a.length)]}
+function sign(){return Math.random()<.5?-1:1}
+function comma(n){let s=(Math.round(n*100000000)/100000000).toString();return s.replace('.',',')}
+function decimals(n){const s=Math.abs(n).toString();return s.includes('.')?s.split('.')[1].length:0}
+function trailingIntegerZeros(n){
+ const x=Math.abs(n);
+ // Nur echte Endnullen ganzer Faktoren zählen. Dezimalzahlen wie 0,003 dürfen niemals als '0' gerundet werden.
+ if(!Number.isInteger(x) || x===0) return 0;
+ const m=String(x).match(/0+$/);
+ return m?m[0].length:0;
+}
+function placeData(){
+ const dec=decimals(current.a)+decimals(current.b);
+ const zeros=trailingIntegerZeros(current.a)+trailingIntegerZeros(current.b);
+ return {dec,zeros,balance:zeros-dec};
+}
+function fmtAbs(n){return comma(Math.abs(n))}
+function make(){let a,b;
+ // In allen Stufen besteht die Kernmultiplikation immer aus zwei einstelligen Faktoren (2 bis 9).
+ // Die Schwierigkeit entsteht ausschließlich durch Vorzeichen, Nullen und Nachkommastellen.
+ const digit=()=>pick([2,3,4,5,6,7,8,9]);
+ const twoDigit=()=>pick([12,13,14,15,16,17,18,21,24,25,27,32,36,42,48,54,63,72,81,96]);
+ const signed=v=>sign()*v;
+ const pow10=n=>10**n;
+ // Profi: keine Auswahl in der Oberfläche. Die Aufgaben wechseln automatisch zwischen
+ // großen, kleinen und gemischten Zahlen. Die Kernmultiplikation ist immer zweistellig · einstellig.
+ if(level==='profi'){
+   type=pick(['large','small','mixed']);
+   const core2=twoDigit(),core1=digit();
+   if(type==='large'){
+     const [ea,eb]=pick([[1,1],[2,1],[2,2],[3,1],[3,2],[4,2]]);
+     a=signed(core2*pow10(ea)); b=signed(core1*pow10(eb));
+   }else if(type==='small'){
+     const [pa,pb]=pick([[1,1],[2,1],[2,2],[3,1],[3,2],[4,1]]);
+     a=signed(core2/pow10(pa)); b=signed(core1/pow10(pb));
+   }else{
+     const [p,z]=pick([[1,1],[2,1],[2,2],[3,2],[3,3],[4,3]]);
+     a=signed(core2/pow10(p)); b=signed(core1*pow10(z));
+   }
+   if(Math.random()<.5){const t=a;a=b;b=t;}
+ }else if(type==='large'){
+   // Große Zahlen: beide Faktoren sind eine Einmaleins-Ziffer mal eine Zehnerpotenz.
+   const exps=level==='start'?[[1,0],[1,1],[2,0],[2,1]]:
+              level==='foerder'?[[2,1],[2,2],[3,1],[3,2]]:
+              [[2,2],[3,1],[3,2],[4,1],[4,2]];
+   const [ea,eb]=pick(exps); a=signed(digit()*pow10(ea)); b=signed(digit()*pow10(eb));
+ }else if(type==='small'){
+   // Kleine Zahlen: auch hier nur einstellige Kernfaktoren. In Start darf ein Faktor ganzzahlig sein.
+   let pairs;
+   if(level==='start') pairs=[[1,1],[1,2],[2,1],[1,3],[3,1],[1,0],[2,0],[3,0],[4,0]];
+   else if(level==='foerder') pairs=[[1,1],[1,2],[2,1],[2,2],[1,3],[3,1]];
+   else pairs=[[2,2],[2,3],[3,2],[3,3],[1,4],[4,1]];
+   const [pa,pb]=pick(pairs); a=signed(digit()/pow10(pa)); b=signed(digit()/pow10(pb));
+   if(Math.random()<.5){const t=a;a=b;b=t;}
+ }else{
+   // Gemischt: eine kleine Dezimalzahl trifft auf eine Einmaleins-Ziffer mit Endnullen.
+   // Nach Entfernen von Komma und Endnullen bleibt stets z. B. 4 · 8, nie 12 · 5 oder 25 · 4.
+   const configs=level==='regel'?[[1,1],[2,1],[2,2],[3,2],[3,3],[4,3]]:
+                 level==='profi'?[[1,2],[2,2],[2,3],[3,3],[3,4],[4,3],[4,4]]:
+                 [[1,1],[2,1]];
+   const [p,z]=pick(configs); a=signed(digit()/pow10(p)); b=signed(digit()*pow10(z));
+   if(Math.random()<.5){const t=a;a=b;b=t;}
+ }
+ current={a,b,res:a*b};counted=false;wrongAttempts=0;startCoreAnswer=null;startZeroAnswer=null;startDecimalAnswer=null;
+ $('q').textContent=`${comma(a)} · ${b<0?'('+comma(b)+')':comma(b)} =`;
+ if(level==='start' && type==='large'){startStep='core';$('stepPrompt').textContent='1. Was rechnest du? Rechne zunächst ohne die Endnullen.';$('stepPrompt').classList.remove('hidden');$('answer').placeholder='Zwischenergebnis eingeben';$('minusBtn').classList.remove('hidden');$('commaBtn').classList.add('hidden');$('check').textContent='Weiter';}
+ else if(level==='start' && type==='small'){startStep='core';$('stepPrompt').textContent='1. Was rechnest du? Rechne zunächst ohne Komma.';$('stepPrompt').classList.remove('hidden');$('answer').placeholder='Zwischenergebnis eingeben';$('minusBtn').classList.remove('hidden');$('commaBtn').classList.add('hidden');$('check').textContent='Weiter';}
+ else{startStep='result';$('stepPrompt').classList.add('hidden');$('answer').placeholder='Ergebnis eingeben';$('minusBtn').classList.remove('hidden');$('commaBtn').classList.remove('hidden');$('check').textContent='Prüfen';}
+ $('answer').disabled=false;$('check').disabled=false;$('minusBtn').disabled=false;$('commaBtn').disabled=false;$('answer').value='';$('completedSteps').innerHTML='';$('completedSteps').classList.add('hidden');$('feedback').textContent='';$('feedback').className='feedback';$('hint').classList.add('hidden');$('solution').classList.add('hidden');$('solution').innerHTML='';$('answer').focus();
+}
+function parse(v){return Number(v.trim().replace(/\s/g,'').replace(',','.'))}
+function solutionHTML(){const {a,b,res}=current;const positive=Math.sign(a)===Math.sign(b);const signText=positive?'positiv':'negativ';const aa=Math.abs(a),bb=Math.abs(b);let steps=[];
+ steps.push(`<strong>Vorzeichen:</strong> ${a<0?'−':'+'} und ${b<0?'−':'+'} → Das Ergebnis ist <strong>${signText}</strong>.`);
+ if(type==='large'){
+   let za=String(Math.round(aa)),zb=String(Math.round(bb));let zA=(za.match(/0+$/)||[''])[0].length,zB=(zb.match(/0+$/)||[''])[0].length;let coreA=Number(za.slice(0,za.length-zA)||'0'),coreB=Number(zb.slice(0,zb.length-zB)||'0');
+   if(zA+zB>0){steps.push(`<strong>Nullen zunächst weglassen:</strong> ${coreA} · ${coreB} = ${coreA*coreB}.`);steps.push(`<strong>Nullen anhängen:</strong> Insgesamt ${zA+zB} ${zA+zB===1?'Null':'Nullen'} → ${comma(aa*bb)}.`)}else{steps.push(`<strong>Ohne Vorzeichen rechnen:</strong> ${comma(aa)} · ${comma(bb)} = ${comma(aa*bb)}.`)}
+ }else if(type==='small'){
+   const da=decimals(aa),db=decimals(bb),total=da+db;const ia=Math.round(aa*10**da),ib=Math.round(bb*10**db);
+   steps.push(`<strong>Kommas zunächst weglassen:</strong> ${ia} · ${ib} = ${ia*ib}.`);
+   steps.push(`<strong>Nachkommastellen zählen:</strong> Die Faktoren haben zusammen ${total} ${total===1?'Nachkommastelle':'Nachkommastellen'} → ${comma(aa*bb)}.`);
+ }else{
+   const da=decimals(aa),db=decimals(bb),ia=Math.round(aa*10**da),ib=Math.round(bb*10**db);
+   const {dec,zeros}=placeData();
+   const coreA=ia/(10**trailingIntegerZeros(ia)), coreB=ib/(10**trailingIntegerZeros(ib));
+   steps.push(`<strong>Ziffern rechnen:</strong> ${coreA} · ${coreB} = ${coreA*coreB}.`);
+   steps.push(`<strong>Stellenwert bestimmen:</strong> ${dec} ${dec===1?'Nachkommastelle':'Nachkommastellen'} und ${zeros} ${zeros===1?'Null':'Nullen'}. ${dec>zeros?`${dec} − ${zeros} = ${dec-zeros} → ${dec-zeros} ${dec-zeros===1?'Nachkommastelle':'Nachkommastellen'}.`:zeros>dec?`${zeros} − ${dec} = ${zeros-dec} → ${zeros-dec} ${zeros-dec===1?'Null':'Nullen'} anhängen.`:'Sie gleichen sich vollständig aus.'}`);
+ }
+ steps.push(`<strong>Ergebnis:</strong> ${comma(a)} · ${b<0?'('+comma(b)+')':comma(b)} = <strong>${comma(res)}</strong>.`);
+ return `<strong>Schrittweise Lösung</strong><ol>${steps.map(x=>`<li>${x}</li>`).join('')}</ol>`;
+}
+function firstErrorHint(v){
+ const r=current.res, av=Math.abs(v), ar=Math.abs(r);
+ if(v!==0 && r!==0 && Math.sign(v)!==Math.sign(r)){
+   return '<strong>Hinweis zum Fehler:</strong> Schau dir nur die Vorzeichen der beiden Faktoren noch einmal an. Haben beide Faktoren das gleiche oder unterschiedliche Vorzeichen?';
+ }
+ if(av>0 && ar>0){
+   const ratio=av/ar;
+   const power=Math.log10(ratio);
+   if(Number.isFinite(power) && Math.abs(power-Math.round(power))<1e-9 && Math.round(power)!==0){
+     if(type==='large') return '<strong>Hinweis zum Fehler:</strong> Zähle alle Nullen. So viele Nullen bekommt auch dein Ergebnis.';
+     if(type==='small') return '<strong>Hinweis zum Fehler:</strong> Zähle alle Nachkommastellen. So viele Nachkommastellen hat auch dein Ergebnis.';
+     return '<strong>Hinweis zum Fehler:</strong> Zähle die Nachkommastellen und die Nullen. Prüfe, wovon es mehr gibt, und ziehe die kleinere Anzahl von der größeren ab. Mehr Nullen? Dann bleiben Nullen übrig. Mehr Nachkommastellen? Dann braucht dein Ergebnis entsprechend viele Nachkommastellen.';
+   }
+ }
+ if(type==='large') return '<strong>Hinweis zum Fehler:</strong> Lass die Endnullen zunächst weg und überprüfe nur die Multiplikation der übrigen Ziffern.';
+ if(type==='small') return '<strong>Hinweis zum Fehler:</strong> Rechne zunächst ohne Komma. Überprüfe nur die Multiplikation der Ziffern.';
+ return '<strong>Hinweis zum Fehler:</strong> Rechne zuerst die Aufgabe aus dem kleinen Einmaleins. Danach zählst du Nachkommastellen und Nullen und ziehst die kleinere Anzahl von der größeren ab.';
+}
+
+function secondErrorHint(v){
+ const r=current.res;
+ if(v!==0 && r!==0 && Math.sign(v)!==Math.sign(r)) return '<strong>Hinweis zum Fehler:</strong> Prüfe das Vorzeichen.';
+ if(type==='large'){
+   const aa=String(Math.round(Math.abs(current.a))),bb=String(Math.round(Math.abs(current.b)));
+   const zA=(aa.match(/0+$/)||[''])[0].length,zB=(bb.match(/0+$/)||[''])[0].length,total=zA+zB;
+   return `<strong>Hinweis zum Stellenwert:</strong> Die erste Zahl hat ${zA} ${zA===1?'Null':'Nullen'}, die zweite ${zB}. Zusammen sind das <strong>${total} ${total===1?'Null':'Nullen'}</strong>. Hänge genau diese Anzahl an dein Ziffernergebnis an.`;
+ }
+ if(type==='small'){
+   const dA=decimals(Math.abs(current.a)),dB=decimals(Math.abs(current.b)),total=dA+dB;
+   return `<strong>Hinweis zum Stellenwert:</strong> Die erste Zahl hat ${dA} ${dA===1?'Nachkommastelle':'Nachkommastellen'}, die zweite ${dB}. Zusammen sind das <strong>${total} Nachkommastellen</strong>. Setze das Komma in deinem Ziffernergebnis so, dass das Ergebnis genau ${total} Nachkommastellen hat.`;
+ }
+ const {dec,zeros}=placeData();
+ if(dec>zeros){const left=dec-zeros;return `<strong>Hinweis zum Stellenwert:</strong> Es gibt insgesamt ${dec} Nachkommastellen und ${zeros} ${zeros===1?'Null':'Nullen'}. Rechne <strong>${dec} − ${zeros} = ${left}</strong>. Dein Ergebnis muss also <strong>${left} ${left===1?'Nachkommastelle':'Nachkommastellen'}</strong> haben. Dein Vorzeichen und deine Ziffernrechnung können dabei schon richtig sein.`}
+ if(zeros>dec){const left=zeros-dec;return `<strong>Hinweis zum Stellenwert:</strong> Es gibt insgesamt ${zeros} Nullen und ${dec} ${dec===1?'Nachkommastelle':'Nachkommastellen'}. Rechne <strong>${zeros} − ${dec} = ${left}</strong>. An dein Ziffernergebnis gehören also noch <strong>${left} ${left===1?'Null':'Nullen'}</strong>. Dein Vorzeichen und deine Ziffernrechnung können dabei schon richtig sein.`}
+ return '<strong>Hinweis zum Stellenwert:</strong> Nachkommastellen und Nullen gleichen sich vollständig aus. Übernimm dein Ziffernergebnis mit dem richtigen Vorzeichen, ohne zusätzliche Nullen oder Nachkommastellen.';
+}
+
+function largeStartData(){
+ const aa=Math.abs(current.a),bb=Math.abs(current.b),sa=String(Math.round(aa)),sb=String(Math.round(bb));
+ const zA=(sa.match(/0+$/)||[''])[0].length,zB=(sb.match(/0+$/)||[''])[0].length;
+ const absCoreA=Number(sa.slice(0,sa.length-zA)||'0'),absCoreB=Number(sb.slice(0,sb.length-zB)||'0');
+ const coreA=current.a<0?-absCoreA:absCoreA,coreB=current.b<0?-absCoreB:absCoreB;
+ return {coreA,coreB,core:coreA*coreB,zeros:zA+zB};
+}
+function checkStartLarge(){
+ const v=parse($('answer').value);if(!Number.isFinite(v)){$('feedback').textContent='Bitte gib eine Zahl ein.';$('feedback').className='feedback bad';return}
+ const d=largeStartData();
+ if(startStep==='core'){
+   if(Math.abs(v-d.core)>1e-9){
+     if(v!==0 && d.core!==0 && Math.sign(v)!==Math.sign(d.core)) $('feedback').textContent='Prüfe das Vorzeichen.';
+     else $('feedback').textContent=`Schau noch einmal auf die Aufgabe ohne Endnullen: ${d.coreA} · ${d.coreB}.`;
+     $('feedback').className='feedback bad';return
+   }
+   startCoreAnswer=v;startStep='zeros';
+   $('completedSteps').innerHTML=`<div class="completedStep">1. Was rechnest du? <strong>${comma(d.coreA)} · ${comma(d.coreB)} = ${comma(v)}</strong></div>`;$('completedSteps').classList.remove('hidden');
+   $('feedback').textContent='Richtig. Jetzt kommt der Stellenwert.';$('feedback').className='feedback good';$('stepPrompt').textContent='2. Wie viele Nullen haben beide Faktoren zusammen?';$('answer').value='';$('answer').placeholder='Anzahl der Nullen';$('answer').focus();return;
+ }
+ if(startStep==='zeros'){
+   if(v!==d.zeros){$('feedback').textContent='Zähle alle Endnullen in beiden Faktoren zusammen.';$('feedback').className='feedback bad';return}
+   startZeroAnswer=v;startStep='result';
+   $('completedSteps').innerHTML+=`<div class="completedStep">2. Anzahl der Nullen: <strong>${v}</strong></div>`;$('completedSteps').classList.remove('hidden');
+   $('feedback').textContent='Richtig. Jetzt setzt du alles zusammen.';$('feedback').className='feedback good';$('stepPrompt').textContent='3. Wie lautet das Ergebnis? Denke auch an das Vorzeichen.';$('answer').value='';$('answer').placeholder='Ergebnis eingeben';$('minusBtn').classList.remove('hidden');$('check').textContent='Prüfen';$('answer').focus();return;
+ }
+ checkResult();
+}
+
+function smallStartData(){
+ const da=decimals(current.a),db=decimals(current.b);
+ const absCoreA=Math.round(Math.abs(current.a)*10**da),absCoreB=Math.round(Math.abs(current.b)*10**db);
+ const coreA=current.a<0?-absCoreA:absCoreA,coreB=current.b<0?-absCoreB:absCoreB;
+ return {coreA,coreB,core:coreA*coreB,decimals:da+db};
+}
+function checkStartSmall(){
+ const v=parse($('answer').value);if(!Number.isFinite(v)){$('feedback').textContent='Bitte gib eine Zahl ein.';$('feedback').className='feedback bad';return}
+ const d=smallStartData();
+ if(startStep==='core'){
+   if(Math.abs(v-d.core)>1e-9){
+     if(v!==0 && d.core!==0 && Math.sign(v)!==Math.sign(d.core)) $('feedback').textContent='Prüfe das Vorzeichen.';
+     else $('feedback').textContent=`Schau noch einmal auf die Aufgabe ohne Komma: ${d.coreA} · ${d.coreB}.`;
+     $('feedback').className='feedback bad';return
+   }
+   startCoreAnswer=v;startStep='decimals';
+   $('completedSteps').innerHTML=`<div class="completedStep">1. Was rechnest du? <strong>${comma(d.coreA)} · ${comma(d.coreB)} = ${comma(v)}</strong></div>`;$('completedSteps').classList.remove('hidden');
+   $('feedback').textContent='Richtig. Jetzt kommt der Stellenwert.';$('feedback').className='feedback good';$('stepPrompt').textContent='2. Wie viele Nachkommastellen haben beide Faktoren zusammen?';$('answer').value='';$('answer').placeholder='Anzahl der Nachkommastellen';$('minusBtn').classList.add('hidden');$('commaBtn').classList.add('hidden');$('answer').focus();return;
+ }
+ if(startStep==='decimals'){
+   if(v!==d.decimals){$('feedback').textContent='Zähle alle Nachkommastellen in beiden Faktoren zusammen.';$('feedback').className='feedback bad';return}
+   startDecimalAnswer=v;startStep='result';
+   $('completedSteps').innerHTML+=`<div class="completedStep">2. Anzahl der Nachkommastellen: <strong>${v}</strong></div>`;$('completedSteps').classList.remove('hidden');
+   $('feedback').textContent='Richtig. Jetzt setzt du alles zusammen.';$('feedback').className='feedback good';$('stepPrompt').textContent='3. Wie lautet das Ergebnis? Setze das Komma richtig und denke an das Vorzeichen.';$('answer').value='';$('answer').placeholder='Ergebnis eingeben';$('minusBtn').classList.remove('hidden');$('commaBtn').classList.remove('hidden');$('check').textContent='Prüfen';$('answer').focus();return;
+ }
+ checkResult();
+}
+
+function checkResult(){
+ let v=parse($('answer').value);
+ if(!Number.isFinite(v)){$('feedback').textContent='Bitte gib eine Zahl ein.';$('feedback').className='feedback bad';return}
+ let ok=Math.abs(v-current.res)<1e-9;
+ if(!counted){stat[level][1]++;if(ok)stat[level][0]++;counted=true;renderStats()}
+ if(ok){
+   $('feedback').textContent='Richtig!';$('feedback').className='feedback good';
+   $('hint').classList.add('hidden');$('solution').classList.add('hidden');$('solution').innerHTML='';
+   return;
+ }
+ wrongAttempts++;
+ $('feedback').textContent=wrongAttempts===1?'Noch nicht richtig. Versuche es mit dem Hinweis noch einmal.':'Noch nicht richtig.';
+ $('feedback').className='feedback bad';
+ if(wrongAttempts===1){
+   $('hint').innerHTML=firstErrorHint(v);$('hint').classList.remove('hidden');
+   $('solution').classList.add('hidden');$('solution').innerHTML='';
+ }else if(level==='start'){
+   $('hint').classList.add('hidden');
+   $('solution').innerHTML=solutionHTML();$('solution').classList.remove('hidden');
+ }else if(wrongAttempts>=3){
+   $('hint').classList.add('hidden');
+   $('solution').innerHTML=solutionHTML();$('solution').classList.remove('hidden');
+   $('feedback').textContent='Dreimal falsch. Schau dir jetzt die Schrittfolge an.';
+   $('answer').disabled=true;$('check').disabled=true;$('minusBtn').disabled=true;$('commaBtn').disabled=true;
+ }else{
+   $('hint').innerHTML=secondErrorHint(v);$('hint').classList.remove('hidden');
+   $('solution').classList.add('hidden');$('solution').innerHTML='';
+ }
+}
+function check(){if(level==='start' && type==='large')return checkStartLarge();if(level==='start' && type==='small')return checkStartSmall();return checkResult();}
+
+function renderStats(){$('stats').innerHTML=Object.keys(names).map(k=>{let [r,t]=stat[k],p=t?Math.round(r/t*100):0;return `<tr><td>${names[k]}</td><td>${r} von ${t}</td><td>${t?p+' %':'–'}</td></tr>`}).join('')}
+function renderTypeChoices(){
+ const area=$('typeArea'),box=$('types');
+ if(level==='profi'){area.classList.add('hidden');box.innerHTML='';return}
+ area.classList.remove('hidden');
+ const choices=level==='regel'?[['large','Große Zahlen'],['small','Kleine Zahlen'],['mixed','Gemischt']]:[['large','Große Zahlen'],['small','Kleine Zahlen']];
+ if(!choices.some(([v])=>v===type)) type='large';
+ box.innerHTML=choices.map(([v,label])=>`<button data-type="${v}" class="${type===v?'active':''}">${label}</button>`).join('');
+ box.querySelectorAll('button').forEach(b=>b.onclick=()=>{type=b.dataset.type;renderTypeChoices();make()});
+}
+document.querySelectorAll('#levels button').forEach(b=>b.onclick=()=>{level=b.dataset.level;document.querySelectorAll('#levels button').forEach(x=>x.classList.toggle('active',x===b));renderTypeChoices();make()});
+renderTypeChoices();$('check').onclick=check;$('next').onclick=make;$('minusBtn').addEventListener('click',()=>{const el=$('answer');let v=el.value;if(v.startsWith('-')||v.startsWith('−')){el.value=v.slice(1)}else{el.value='-'+v}el.focus();const pos=el.value.length;el.setSelectionRange(pos,pos)});$('commaBtn').addEventListener('click',()=>{const el=$('answer');const start=el.selectionStart??el.value.length,end=el.selectionEnd??el.value.length;const before=el.value.slice(0,start),after=el.value.slice(end);if(!before.includes(',')&&!before.includes('.')&&!after.includes(',')&&!after.includes('.')){el.value=before+','+after;const pos=start+1;el.focus();el.setSelectionRange(pos,pos)}else{el.focus()}});$('answer').addEventListener('keydown',e=>{if(e.key==='Enter')check()});renderStats();make();
+</script></body></html>
